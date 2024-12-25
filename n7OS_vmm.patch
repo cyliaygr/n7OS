@@ -1,0 +1,303 @@
+diff -ruN n7OS/include/n7OS/kheap.h n7OS-patched/include/n7OS/kheap.h
+--- n7OS/include/n7OS/kheap.h	1970-01-01 01:00:00
++++ n7OS-patched/include/n7OS/kheap.h	2024-02-28 14:39:18
+@@ -0,0 +1,55 @@
++/**
++ * @file kheap.h
++ * @brief Interface d'allocation de mémoire dans la zone du tas du noyau 
++ */
++#ifndef _KHEAP_H
++#define _KHEAP_H
++
++#include <inttypes.h>
++
++/**
++ * @brief Alloue une zone mémoire de taille sz. C'est une version simplifiée de kmalloc().
++ * 
++ * @param sz        Taille de la zone mémoire à allouer
++ * @param align     align == 1 : la zone doit être alignée sur une page.
++ * @param phys      phys != 0 : le résultat de l'allocation est stocké dans phys
++ * @return uint32_t Adresse de début de la zone allouée
++ */
++uint32_t kmalloc_int(uint32_t sz, int align, uint32_t *phys);
++
++/**
++ * @brief Alloue une zone mémoire de taille sz, alignée sur une page.
++ * 
++ * @param sz        Taille de la zone mémoire à allouer
++ * @return uint32_t Adresse de début de la zone allouée
++ */
++uint32_t kmalloc_a(uint32_t sz);
++
++/**
++ * @brief Alloue une zone mémoire de taille sz, le résultat sera fourni dans phys.
++ * 
++ * @param sz        Taille de la zone mémoire à allouer
++ * @param phys      Adresse de début de la zone allouée. Doit être un pointeur valide de type uint32_t
++ * @return uint32_t Adresse de début de la zone allouée
++ */
++uint32_t kmalloc_p(uint32_t sz, uint32_t *phys);
++
++/**
++ * @brief Alloue une zone mémoire de taille sz, alignée sur une page; le résultat sera fourni dans phys.
++ * 
++ * @param sz        Taille de la zone mémoire à allouer
++ * @param phys      Adresse de début de la zone allouée. Doit être un pointeur valide de type uint32_t
++ * @return uint32_t Adresse de début de la zone allouée
++ */
++uint32_t kmalloc_ap(uint32_t sz, uint32_t *phys);
++
++/**
++ * @brief Fonction d'allocation d'une zone mémoire générique (pas d'alignement mémoire,
++ *        le résultat est l'adresse de la zone)
++ * 
++ * @param sz        Taille de la zone mémoire à allouer
++ * @return uint32_t Adresse de début de la zone allouée
++ */
++uint32_t kmalloc(uint32_t sz);
++
++#endif
+\ No newline at end of file
+diff -ruN n7OS/include/n7OS/mem.h n7OS-patched/include/n7OS/mem.h
+--- n7OS/include/n7OS/mem.h	1970-01-01 01:00:00
++++ n7OS-patched/include/n7OS/mem.h	2024-02-28 08:45:21
+@@ -0,0 +1,61 @@
++/**
++ * @file mem.h
++ * @brief Gestion de l'allocation des pages de la mémoire physique
++ */
++
++#ifndef _MEM_H
++#define _MEM_H
++
++#include <inttypes.h>
++
++/**
++ * @brief Adresse de la dernière ligne adressable de la mémoire
++ * 
++ * On considère ici une mémoire de 16Mo
++ */
++#define LAST_MEMORY_INDEX 0XFFFFFF 
++
++/**
++ * @brief Taille d'une page en mémoire
++ * 
++ * Ici, 0x1000 -> 2^10 * 4 = 4096 octets
++ */
++#define PAGE_SIZE 0x1000
++
++/**
++ * @brief Marque la page allouée
++ * 
++ * Lorsque la page a été choisie, cette fonction permet de la marquer allouée
++ * 
++ * @param addr Adresse de la page à allouer
++ */
++void setPage(uint32_t addr);
++
++/**
++ * @brief Désalloue la page
++ * 
++ * Libère la page allouée.
++ * 
++ * @param addr Adresse de la page à libérer
++ */
++void clearPage(uint32_t addr);
++
++/**
++ * @brief Fourni la première page libre de la mémoire physique tout en l'allouant
++ * 
++ * @return uint32_t Adresse de la page sélectionnée
++ */
++uint32_t findfreePage();
++
++/**
++ * @brief Initialise le gestionnaire de mémoire physique
++ * 
++ */
++void init_mem();
++
++/**
++ * @brief Affiche l'état de la mémoire physique
++ * 
++ */
++void print_mem();
++#endif
+\ No newline at end of file
+diff -ruN n7OS/include/n7OS/paging.h n7OS-patched/include/n7OS/paging.h
+--- n7OS/include/n7OS/paging.h	1970-01-01 01:00:00
++++ n7OS-patched/include/n7OS/paging.h	2024-02-28 08:47:02
+@@ -0,0 +1,49 @@
++/**
++ * @file paging.h
++ * @brief Gestion de la pagination dans le noyau
++ */
++#ifndef _PAGING_H
++#define _PAGING_H
++
++#include <inttypes.h>
++
++/**
++ * @brief Description d'une ligne de la table de page
++ * 
++ */
++typedef struct {
++    // a completer
++} page_table_entry_t;
++
++/**
++ * @brief Une entrée dans la table de page peut être manipulée en utilisant
++ *        la structure page_table_entry_t ou directement la valeur
++ */
++typedef union {
++    page_table_entry_t page_entry;
++    uint32_t value;
++} PTE; // PTE = Page Table Entry 
++
++/**
++ * @brief Une table de page (PageTable) est un tableau de descripteurs de page
++ * 
++ */
++typedef PTE * PageTable;
++
++/**
++ * @brief Cette fonction initialise le répertoire de page, alloue les pages de table du noyau
++ *        et active la pagination
++ * 
++ */
++void initialise_paging();
++
++/**
++ * @brief Cette fonction alloue une page de la mémoire physique à une adresse de la mémoire virtuelle
++ * 
++ * @param address       Adresse de la mémoire virtuelle à mapper
++ * @param is_writeable  Si is_writeable == 1, la page est accessible en écriture
++ * @param is_kernel     Si is_kernel == 1, la page ne peut être accédée que par le noyau
++ * @return PageTable    La table de page modifiée
++ */
++PageTable alloc_page_entry(uint32_t address, int is_writeable, int is_kernel);
++#endif
+\ No newline at end of file
+diff -ruN n7OS/include/stddef.h n7OS-patched/include/stddef.h
+--- n7OS/include/stddef.h	2020-05-04 15:19:17
++++ n7OS-patched/include/stddef.h	2024-02-28 14:37:28
+@@ -1,4 +1,4 @@
+-#include "types.h"
++#include <types.h>
+ 
+ #undef NULL
+ #ifdef __cplusplus
+diff -ruN n7OS/kernel/kheap.c n7OS-patched/kernel/kheap.c
+--- n7OS/kernel/kheap.c	1970-01-01 01:00:00
++++ n7OS-patched/kernel/kheap.c	2024-02-28 14:29:56
+@@ -0,0 +1,39 @@
++#include <n7OS/kheap.h>
++
++/**
++ * @brief Lorsque tout le code du noyau est compilé, le tas du noyau commence juste après.
++ * 
++ */
++extern uint32_t mem_heap;
++uint32_t placement_address = (uint32_t)&mem_heap;
++
++uint32_t kmalloc_int(uint32_t sz, int align, uint32_t *phys) {
++    uint32_t address;
++    if (align == 1 && (placement_address & 0xFFF) ) {
++        // Aligne l'adresse si on n'est pas au début d'une page
++        placement_address &= 0xFFFFF000;
++        placement_address += 0x1000;
++    }
++    if (phys) {
++        *phys = placement_address;
++    }
++    address= placement_address;
++    placement_address += sz;
++    return address;
++}
++
++uint32_t kmalloc_a(uint32_t sz) {
++    return kmalloc_int(sz, 1, 0);
++}
++
++uint32_t kmalloc_p(uint32_t sz, uint32_t *phys) {
++    return kmalloc_int(sz, 0, phys);
++}
++
++uint32_t kmalloc_ap(uint32_t sz, uint32_t *phys) {
++    return kmalloc_int(sz, 1, phys);
++}
++
++uint32_t kmalloc(uint32_t sz) {
++    return kmalloc_int(sz, 0, 0);
++}
+diff -ruN n7OS/kernel/mem.c n7OS-patched/kernel/mem.c
+--- n7OS/kernel/mem.c	1970-01-01 01:00:00
++++ n7OS-patched/kernel/mem.c	2024-02-28 14:30:02
+@@ -0,0 +1,50 @@
++#include <n7OS/mem.h>
++
++/**
++ * @brief Marque la page allouée
++ * 
++ * Lorsque la page a été choisie, cette fonction permet de la marquer allouée
++ * 
++ * @param addr Adresse de la page à allouer
++ */
++void setPage(uint32_t addr) {
++
++}
++
++/**
++ * @brief Désalloue la page
++ * 
++ * Libère la page allouée.
++ * 
++ * @param addr Adresse de la page à libérer
++ */
++void clearPage(uint32_t addr) {
++
++}
++
++/**
++ * @brief Fourni la première page libre de la mémoire physique tout en l'allouant
++ * 
++ * @return uint32_t Adresse de la page sélectionnée
++ */
++uint32_t findfreePage() {
++    uint32_t adresse= 0x0;
++
++    return adresse;
++}
++
++/**
++ * @brief Initialise le gestionnaire de mémoire physique
++ * 
++ */
++void init_mem() {
++
++}
++
++/**
++ * @brief Affiche l'état de la mémoire physique
++ * 
++ */
++void print_mem() {
++    
++}
+\ No newline at end of file
+diff -ruN n7OS/kernel/paging.c n7OS-patched/kernel/paging.c
+--- n7OS/kernel/paging.c	1970-01-01 01:00:00
++++ n7OS-patched/kernel/paging.c	2024-02-28 14:37:56
+@@ -0,0 +1,12 @@
++#include <n7OS/paging.h>
++#include <stddef.h> // nécessaire pour NULL
++
++void initialise_paging() {
++
++}
++
++PageTable alloc_page_entry(uint32_t address, int is_writeable, int is_kernel) {
++    PageTable pgtab= NULL;
++
++    return pgtab;
++}
